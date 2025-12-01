@@ -2,11 +2,19 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.generics import CreateAPIView, DestroyAPIView, ListAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
+from lms.models import Course
 from users.models import Payment, User
-from users.serialilers import (PaymentSerializer, UserCreateSerializer, UserDetailSerializer, UserListSerializer,
-                               UserUpdateSerializer)
+from users.serialilers import (
+    PaymentSerializer,
+    UserCreateSerializer,
+    UserDetailSerializer,
+    UserListSerializer,
+    UserUpdateSerializer,
+)
 
 
 class PaymentViewSet(ModelViewSet):
