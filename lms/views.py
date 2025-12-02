@@ -1,15 +1,20 @@
+from rest_framework import status
 from rest_framework.generics import CreateAPIView, DestroyAPIView, ListAPIView, RetrieveAPIView, UpdateAPIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
 
-from lms.models import Course, Lesson
-from lms.serialilers import CourseDetailSerializer, CourseSerializer, LessonSerializer
+from lms.models import Course, Lesson, Subscription
+from lms.paginations import CustomPagination
+from lms.serialilers import CourseDetailSerializer, CourseSerializer, LessonSerializer, SubscriptionSerializer
 from users.permissions import IsModer, IsOwner
 
 
 class CourseViewSet(ModelViewSet):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
+    pagination_class = CustomPagination
 
     def get_serializer_class(self):
         if self.action == "retrieve":
@@ -22,14 +27,12 @@ class CourseViewSet(ModelViewSet):
         course.save()
 
     def get_permissions(self):
-        print(self.action)
         if self.action == "create":
             self.permission_classes = (~IsModer,)
         elif self.action == "destroy":
             self.permission_classes = (~IsModer | IsOwner,)
         elif self.action in ["partial_update", "update", "retrieve"]:
             self.permission_classes = (IsModer | IsOwner,)
-            print(IsModer | IsOwner)
         return super().get_permissions()
 
 
@@ -46,6 +49,7 @@ class LessonCreateAPIView(CreateAPIView):
 class LessonListAPIView(ListAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
+    pagination_class = CustomPagination
 
 
 class LessonRetrieveAPIView(RetrieveAPIView):
@@ -63,3 +67,23 @@ class LessonUpdateAPIView(UpdateAPIView):
 class LessonDestroyAPIView(DestroyAPIView):
     queryset = Lesson.objects.all()
     permission_classes = (IsAuthenticated, IsOwner | ~IsModer)
+
+
+class SubscriptionSwitchAPIView(APIView):
+
+    def post(self, *args, **kwargs):
+        serializer = SubscriptionSerializer(data=self.request.data)
+        if serializer.is_valid():
+            user = self.request.user
+            course_id = self.request.data.get("course_id")
+            course = Course.objects.get(id=course_id)
+            sub_item = Subscription.objects.filter(user=user, course=course)
+            if sub_item.exists():
+                sub_item.delete()
+                message = "Подписка удалена"
+            else:
+                Subscription.objects.create(user=user, course=course)
+                message = "Подписка добавлена"
+            return Response({"message": message})
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -19,7 +19,7 @@ class Command(BaseCommand):
         course_2 = Course.objects.create(name="Курс 2")
 
         # Создание уроков
-        lesson_1 = Lesson.objects.create(name="Урок 1-1", course=course_1)
+        Lesson.objects.create(name="Урок 1-1", course=course_1)
         lesson_2 = Lesson.objects.create(name="Урок 2-1", course=course_2)
         lesson_3 = Lesson.objects.create(name="Урок 2-2", course=course_2)
 
