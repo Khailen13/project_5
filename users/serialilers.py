@@ -1,12 +1,24 @@
 from rest_framework.serializers import CharField, ModelSerializer
 
 from users.models import Payment, User
+from users.validators import CourseOrLessonValidator
 
 
 class PaymentSerializer(ModelSerializer):
+    method = CharField(allow_blank=True, allow_null=True)
+
     class Meta:
         model = Payment
         fields = "__all__"
+        read_only_fields = [
+            "id",
+            "user",
+            "date",
+        ]
+
+    validators = [
+        CourseOrLessonValidator(),
+    ]
 
 
 class UserCreateSerializer(ModelSerializer):

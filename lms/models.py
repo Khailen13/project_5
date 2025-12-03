@@ -10,10 +10,14 @@ class Course(models.Model):
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Создатель курса"
     )
+    price = models.PositiveIntegerField(default=0, verbose_name="Стоимость курса")
 
     class Meta:
         verbose_name = "Курс"
         verbose_name_plural = "Курсы"
+
+    def __str__(self):
+        return str(f"Курс '{self.name}'")
 
 
 class Lesson(models.Model):
@@ -25,10 +29,14 @@ class Lesson(models.Model):
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Создатель урока"
     )
+    price = models.PositiveIntegerField(default=0, verbose_name="Стоимость урока")
 
     class Meta:
         verbose_name = "Урок"
         verbose_name_plural = "Уроки"
+
+    def __str__(self):
+        return str(f"Урок '{self.name}'")
 
 
 class Subscription(models.Model):

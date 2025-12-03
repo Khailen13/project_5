@@ -7,14 +7,26 @@ from rest_framework.viewsets import ModelViewSet
 from users.models import Payment, User
 from users.serialilers import (PaymentSerializer, UserCreateSerializer, UserDetailSerializer, UserListSerializer,
                                UserUpdateSerializer)
+from users.services import create_stripe_price, create_stripe_product, create_stripe_session
 
 
 class PaymentViewSet(ModelViewSet):
     queryset = Payment.objects.all()
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     ordering_fields = ("date",)
-    filterset_fields = ("paid_course", "paid_lesson", "payment_method")
+    filterset_fields = ("paid_course", "paid_lesson", "method")
     serializer_class = PaymentSerializer
+
+    def perform_create(self, serializer):
+        payment = serializer.save(user=self.request.user)
+        paid_object = payment.paid_lesson if payment.paid_lesson else payment.paid_course
+        create_stripe_product(paid_object_name=paid_object.name)
+        price = create_stripe_price(paid_object_name=paid_object.name, price=paid_object.price)
+        payment.amount = paid_object.price
+        session_id, payment_link = create_stripe_session(price)
+        payment.session_id = session_id
+        payment.link = payment_link
+        payment.save()
 
 
 class UserCreateAPIView(CreateAPIView):
