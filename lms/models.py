@@ -10,6 +10,7 @@ class Course(models.Model):
     creator = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Создатель курса"
     )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата и время последнего обновления")
     price = models.PositiveIntegerField(default=0, verbose_name="Стоимость курса")
 
     class Meta:
