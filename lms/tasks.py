@@ -10,14 +10,16 @@ from users.models import User
 @shared_task
 def send_course_update_message(course_name, recipient_list: list):
     """Отправляет письмо об обновлении курса"""
-
-    send_mail(
-        "Обновление курса",
-        f"Уважаемый подписчик, сообщаем об обновлении курса {course_name}.",
-        settings.EMAIL_HOST_USER,
-        recipient_list,
-    )
-
+    print("send_course_update_message")
+    try:
+        send_mail(
+            "Обновление курса",
+            f"Уважаемый подписчик, сообщаем об обновлении курса {course_name}.",
+            settings.EMAIL_HOST_USER,
+            recipient_list,
+        )
+    except Exception as e:
+        print(f"Ошибка при отправке письма: {str(e)}")
 
 @shared_task
 def disable_inactive_users():
