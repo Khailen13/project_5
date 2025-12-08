@@ -21,6 +21,7 @@ def send_course_update_message(course_name, recipient_list: list):
     except Exception as e:
         print(f"Ошибка при отправке письма: {str(e)}")
 
+
 @shared_task
 def disable_inactive_users():
     """Блокирует пользователя при неактивности более месяца"""
