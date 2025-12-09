@@ -1,0 +1,86 @@
+name: Django CI/CD Pipeline
+
+on: [push, pull_request]
+
+env:
+  DEBUG: "True"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Poetry and dependencies
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo 'export POETRY_HOME=$HOME/.poetry' >> $GITHUB_ENV
+          echo 'export PATH=$POETRY_HOME/bin:$PATH' >> $GITHUB_ENV
+          poetry config virtualenvs.in-project true
+          poetry install
+          poetry add flake8
+
+      - name: Run linters
+        run: |
+          source ./.venv/bin/activate
+          flake8 .
+
+  test:
+    needs: lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python and dependencies
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13"
+
+      - name: Install Poetry and dependencies
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo 'export POETRY_HOME=$HOME/.poetry' >> $GITHUB_ENV
+          echo 'export PATH=$POETRY_HOME/bin:$PATH' >> $GITHUB_ENV
+          poetry config virtualenvs.in-project true
+          poetry install
+
+      - name: Prepare environment
+        run: |
+          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
+          echo "DEBUG=$DEBUG" >> .env
+
+      - name: Run tests
+        run: |
+          source ./.venv/bin/activate
+          python manage.py test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest .
+          docker push ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest

@@ -8,6 +8,7 @@ from rest_framework.viewsets import ModelViewSet
 from lms.models import Course, Lesson, Subscription
 from lms.paginations import CustomPagination
 from lms.serialilers import CourseDetailSerializer, CourseSerializer, LessonSerializer, SubscriptionSerializer
+from lms.tasks import send_course_update_message
 from users.permissions import IsModer, IsOwner
 
 
@@ -34,6 +35,14 @@ class CourseViewSet(ModelViewSet):
         elif self.action in ["partial_update", "update", "retrieve"]:
             self.permission_classes = (IsModer | IsOwner,)
         return super().get_permissions()
+
+    def perform_update(self, serializer):
+        serializer.save()
+        course = serializer.instance
+        subscribed_users_list = [
+            subscription.user.email for subscription in Subscription.objects.filter(course=course)
+        ]
+        send_course_update_message.delay(course.name, subscribed_users_list)
 
 
 class LessonCreateAPIView(CreateAPIView):

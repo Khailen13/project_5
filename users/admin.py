@@ -10,6 +10,8 @@ class UserAdmin(admin.ModelAdmin):
         "email",
         "phone",
         "city",
+        "last_login",
+        "is_active",
     )
 
 

@@ -1,5 +1,4 @@
 # SPA веб-приложение
-
 ## Описание:
 Созданы следующие модели:
 1. Пользователь (приложение users):
@@ -57,14 +56,95 @@
 * redoc/
 
 Подключена возможность оплаты курсов через https://stripe.com/docs/api.
+
+Добавлена асинхронная рассылка писем пользователям-подписчикам об обновлении материалов курса.
+
+Добавлена фоновая задача по блокировке пользователей при неактивности на сайте более 1 месяца.
+## Установка:
+1. Подготовка окружения
+* Установите Docker Desktop:
+  * Скачайте с официального сайта: 
+  * Установите для вашей ОС
+  * Запустите Docker
+2. Клонирование репозитория
+    ```
+    # Перейдите в директорию для проектов
+    cd ~/Projects  # для Linux/MacOS
+    # или
+    cd C:\\Projects  # для Windows
+    
+    # Клонируйте репозиторий
+    git clone https://github.com/Khailen13/project_5.git
+    
+    # Перейдите в директорию проекта
+    cd project_5
+    
+    # Переключитесь на другую ветку
+    git checkout feature/homework_34
+    
+    ```
+3. Настройка окружения
+
+   1. Создайте файл конфигурации .env путем копирования файла .env.sample.
+   2. Укажите данные в файле .env:
+        ```
+        SECRET_KEY=ваш_уникальный_ключ
+        
+        DEBUG=False
+        
+        POSTGRES_DB=имя_базы_данных
+        POSTGRES_USER=имя_пользователя
+        POSTGRES_PASSWORD=пароль
+        POSTGRES_HOST=хост
+        POSTGRES_PORT=порт
+        
+        STRIPE_API_KEY=api_ключ_stripe
+        
+        CELERY_BROKER_URL=URL_адрес_брокера_celery
+        CELERY_RESULT_BACKEND= URL_адрес_бэкенда_celery
+        
+        EMAIL_HOST_USER=логин_для_SMTP_сервера
+        EMAIL_HOST_PASSWORD=пароль_для_SMTP_сервера
+        ```
+4. Сборка и запуск проекта
+
+    ````
+    docker-compose up -d
+    ````
+5. Проверка работы
+
+   1. Проверьте статус контейнеров:
+        ````
+        docker-compose ps
+        ````
+   2. Просмотрите логи:
+        ````
+        docker-compose logs -f
+        ````
+7. Дополнительные команды
+
+* Создание суперпользователя(email: admin@mail.ru; password: 123qwe - надо ли это выносить):
+    ````
+    docker-compose exec web python manage.py csu
+    ````
+* Перезапуск контейнеров:
+    ````
+    docker-compose restart
+    ````
+
+* Остановка контейнеров:
+    ````
+    docker-compose down
+    ````
+* Удаление всех данных:
+    ````
+    docker-compose down --volumes
+    ````
 ## Использование:
-```
-git clone https://github.com/Khailen13/project_5
-```
-2. Установите зависимости:
-```
-poetry install
-```
+Откройте в браузере:
+* http://localhost:8000/ или http://localhost:8000/swagger/ (API-документация Swagger)
+* http://localhost:8000/redoc/ (API-документация ReDoc)
+* http://localhost:8000/admin/ (админ-панель)
 
 ## Документация:
 Для получения дополнительной информации обратитесь к [документации](docs/README.md).
