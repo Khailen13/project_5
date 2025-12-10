@@ -84,3 +84,58 @@ jobs:
         run: |
           docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest .
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_KEY }}
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}  # Добавляем явное указание ключа
+          script: |
+            set -ex
+            echo "--- Начало деплоя ---"
+            date
+            
+            # Проверка версии Docker
+            docker --version
+            
+            # Проверка наличия образа
+            if ! docker image inspect ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest > /dev/null 2>&1; then
+              echo "Образ не найден, выполняем загрузку"
+              docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
+            else
+              echo "Образ уже существует"
+            fi
+            
+            # Остановка и удаление старого контейнера
+            docker container stop myapp || true
+            docker container rm myapp || true
+            
+            # Запуск нового контейнера на порту 443
+            docker run -d \
+              --name myapp \
+              -p 443:8000 \
+              ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
+            
+            # Проверка статуса контейнера
+            docker ps | grep myapp
+            
+            # Проверка логов контейнера
+            docker logs myapp
+            
+            # Проверка работоспособности
+            sleep 30
+            curl -f http://localhost || { echo "Приложение не отвечает"; exit 1; }
+            
+            echo "--- Деплой завершен ---"
+            date
