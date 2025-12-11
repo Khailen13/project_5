@@ -3,12 +3,10 @@ name: Django CI/CD Pipeline
 on:
   push:
     branches:
-      - main
-      - develop
+      - "**"
   pull_request:
     branches:
-      - main
-      - develop
+      - "**"
 
 env:
   DEBUG: "True"
