@@ -1,9 +1,18 @@
 name: Django CI/CD Pipeline
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
 
 env:
   DEBUG: "True"
+  PYTHON_VERSION: "3.13"
 
 jobs:
   lint:
@@ -16,21 +25,19 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.13"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Poetry and dependencies
+      - name: Install dependencies
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo 'export POETRY_HOME=$HOME/.poetry' >> $GITHUB_ENV
-          echo 'export PATH=$POETRY_HOME/bin:$PATH' >> $GITHUB_ENV
-          poetry config virtualenvs.in-project true
-          poetry install
-          poetry add flake8
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 black isort
 
       - name: Run linters
         run: |
-          source ./.venv/bin/activate
           flake8 .
+          black --check .
+          isort --check-only .
 
   test:
     needs: lint
@@ -40,18 +47,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Python and dependencies
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.13"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install Poetry and dependencies
+      - name: Install dependencies
         run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          echo 'export POETRY_HOME=$HOME/.poetry' >> $GITHUB_ENV
-          echo 'export PATH=$POETRY_HOME/bin:$PATH' >> $GITHUB_ENV
-          poetry config virtualenvs.in-project true
-          poetry install
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Prepare environment
         run: |
@@ -60,7 +64,6 @@ jobs:
 
       - name: Run tests
         run: |
-          source ./.venv/bin/activate
           python manage.py test
 
   build:
@@ -71,7 +74,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Docker
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
       - name: Login to Docker Hub
@@ -82,7 +88,10 @@ jobs:
 
       - name: Build and push Docker image
         run: |
-          docker build -t ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest .
+          docker build \
+            --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+            --build-arg VCS_REF=$(git rev-parse --short HEAD) \
+            -t ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest .
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
 
   deploy:
@@ -91,7 +100,7 @@ jobs:
 
     steps:
       - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.0
+        uses: webfactory/ssh-agent@v0.1.7
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
@@ -100,7 +109,7 @@ jobs:
         with:
           host: ${{ secrets.SERVER_IP }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}  # Добавляем явное указание ключа
+          key: ${{ secrets.SSH_KEY }}
           script: |
             set -ex
             echo "--- Начало деплоя ---"
@@ -109,33 +118,44 @@ jobs:
             # Проверка версии Docker
             docker --version
             
-            # Проверка наличия образа
-            if ! docker image inspect ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest > /dev/null 2>&1; then
-              echo "Образ не найден, выполняем загрузку"
-              docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
-            else
-              echo "Образ уже существует"
-            fi
-            
-            # Остановка и удаление старого контейнера
+            # Очистка старого контейнера
             docker container stop myapp || true
             docker container rm myapp || true
             
-            # Запуск нового контейнера на порту 443
+            # Удаление старого образа (если нужно)
+            docker image rm ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest || true
+            
+            # Загрузка нового образа
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
+            
+            # Запуск нового контейнера
             docker run -d \
               --name myapp \
-              -p 443:8000 \
+              -p 8000:8000 \
+              --restart unless-stopped \
               ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
             
-            # Проверка статуса контейнера
+            # Проверка статуса
             docker ps | grep myapp
             
-            # Проверка логов контейнера
+            # Проверка логов
             docker logs myapp
             
-            # Проверка работоспособности
-            sleep 30
+            # Проверка доступности приложения
+            sleep 30  # Ждем запуска приложения
             curl -f http://localhost || { echo "Приложение не отвечает"; exit 1; }
             
-            echo "--- Деплой завершен ---"
+            # Проверка версии приложения
+            docker exec myapp cat /app/version.txt
+            
+            # Дополнительная проверка миграций
+            docker exec myapp python manage.py showmigrations
+            
+            # Проверка статических файлов
+            docker exec myapp ls -la /app/staticfiles
+            
+            # Очистка временных файлов
+            docker system prune -f
+            
+            echo "--- Деплой успешно завершен ---"
             date

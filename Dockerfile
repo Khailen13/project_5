@@ -1,46 +1,53 @@
-# Этап 1: сборка зависимостей (builder)
-FROM python:3.13-slim AS builder
+# Используем официальный образ Python с минималистичным образом
+FROM python:3.13-slim
 
+# Устанавливаем рабочую директорию
 WORKDIR /app
 
-RUN pip install poetry
+# Обновляем систему и устанавливаем системные зависимости
+RUN apt-get update && \
+    apt-get install -y \
+        gcc \
+        libpq-dev \
+        && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y \
-    gcc \
-    libpq-dev \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Создаем системного пользователя
+RUN groupadd -r appuser && \
+    useradd -r -g appuser appuser
 
-COPY pyproject.toml poetry.lock* ./
+# Создаем директорию для кэша
+RUN mkdir -p /home/appuser/.cache && \
+    chmod -R 755 /home/appuser/.cache
 
-RUN poetry config virtualenvs.create false \
-    && poetry install --no-interaction --no-ansi
+# Копируем и устанавливаем Python зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Этап 2: финальный образ (runner)
-FROM python:3.13-slim AS runner
+# Создаем необходимые директории с правильными правами
+RUN mkdir -p \
+    /app/staticfiles \
+    /app/media \
+    /app/logs \
+    && chown -R appuser:appuser /app \
+    && chmod -R 755 /app \
+    && chmod -R 775 /app/staticfiles \
+    && chmod -R 775 /app/media
 
-WORKDIR /app
+# Копируем код приложения
+COPY --chown=appuser:appuser . .
 
-# Создаем пользователя и группу
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Добавляем проверку содержимого после копирования
+RUN ls -la /app  # Проверяем, что все файлы скопировались
 
-# Создаем директории и устанавливаем права
-RUN mkdir -p /app/media /app/staticfiles \
-    && chown -R appuser:appuser /app
-
-# Копируем зависимости
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-COPY . .
-
-# Добавляем команду для сбора статических файлов
-RUN chown -R appuser:appuser /app/staticfiles \
-    && chmod -R 755 /app/staticfiles
-
-# Переключаемся на пользователя appuser
+# Устанавливаем пользователя по умолчанию
 USER appuser
 
+# Открываем порт
 EXPOSE 8000
 
-# Добавляем команду для автоматического сбора статических файлов
-CMD bash -c "python manage.py collectstatic --noinput && python manage.py migrate && gunicorn --bind 0.0.0.0:8000 project.wsgi:application"
+# Добавляем проверку версий установленных пакетов
+RUN pip list
+
+# Команда для запуска приложения
+CMD ["gunicorn", "config.wsgi:application", "-b", "0.0.0.0:8000"]
