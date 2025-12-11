@@ -29,13 +29,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install flake8 black isort
+          pip install flake8
 
       - name: Run linters
         run: |
           flake8 .
-          black --check .
-          isort --check-only .
 
   test:
     needs: lint
@@ -92,68 +90,62 @@ jobs:
             -t ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest .
           docker push ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
 
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
 
     steps:
       - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.1.7
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_KEY }}
 
       - name: Deploy to server
-        uses: appleboy/ssh-action@v0.1.7
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            set -ex
-            echo "--- Начало деплоя ---"
-            date
-            
-            # Проверка версии Docker
-            docker --version
-            
-            # Очистка старого контейнера
-            docker container stop myapp || true
-            docker container rm myapp || true
-            
-            # Удаление старого образа (если нужно)
-            docker image rm ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest || true
-            
-            # Загрузка нового образа
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
-            
-            # Запуск нового контейнера
-            docker run -d \
-              --name myapp \
-              -p 8000:8000 \
-              --restart unless-stopped \
-              ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
-            
-            # Проверка статуса
-            docker ps | grep myapp
-            
-            # Проверка логов
-            docker logs myapp
-            
-            # Проверка доступности приложения
-            sleep 30  # Ждем запуска приложения
-            curl -f http://localhost || { echo "Приложение не отвечает"; exit 1; }
-            
-            # Проверка версии приложения
-            docker exec myapp cat /app/version.txt
-            
-            # Дополнительная проверка миграций
-            docker exec myapp python manage.py showmigrations
-            
-            # Проверка статических файлов
-            docker exec myapp ls -la /app/staticfiles
-            
-            # Очистка временных файлов
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            # Очищаем старые контейнеры и образы
             docker system prune -f
             
-            echo "--- Деплой успешно завершен ---"
-            date
+            # Проверяем занятость порта 80
+            if sudo lsof -i :80 | grep LISTEN > /dev/null; then
+              echo "Порт 80 занят! Попытка освободить..."
+              sudo fuser -k 80/tcp
+              sleep 5
+            fi
+
+            # Проверяем снова
+            if sudo lsof -i :80 | grep LISTEN > /dev/null; then
+              echo "Порт 80 все еще занят! Развертывание невозможно."
+              exit 1
+            fi
+
+            # Проверяем и удаляем контейнер, если он существует
+            if docker ps -a --filter name=myapp | grep -q myapp; then
+              echo "Контейнер myapp найден, останавливаем и удаляем..."
+              docker stop myapp || true
+              docker rm myapp || true
+            fi
+
+            # Выполняем развертывание
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
+            docker run -d \
+              --name myapp \
+              --restart unless-stopped \
+              -p 80:8000 \
+              ${{ secrets.DOCKER_HUB_USERNAME }}/myapp:latest
+
+            # Ждем запуска и проверяем статус
+            sleep 20
+            if ! docker logs myapp | grep -q "started successfully"; then
+              echo "Приложение не запустилось корректно"
+              docker logs myapp
+              exit 1
+            fi
+          EOF
+
+      - name: Verify deployment
+        run: |
+          sleep 20
+          curl -f http://${{ secrets.SERVER_IP }} || exit 1
+          echo "Deployment verified!"

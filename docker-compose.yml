@@ -20,10 +20,10 @@ services:
       redis:
         condition: service_started
     healthcheck:
-      test: ["curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
 
   nginx:
     build:
@@ -35,6 +35,11 @@ services:
       - static_volume:/app/staticfiles
     depends_on:
       - web
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   db:
     image: postgres:16
@@ -47,7 +52,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["pg_isready", "-U", "postgres"]
+      test: ["CMD", "pg_isready", "-U", "postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -87,12 +92,3 @@ volumes:
   postgres_data:
   redis_data:
   static_volume:
-
-# Дополнительные команды для управления
-# Перезапуск всех сервисов:
-# docker-compose down -v
-# docker-compose build --no-cache
-# docker-compose up -d
-
-# Сбор статических файлов:
-# docker-compose run --rm web python manage.py collectstatic --noinput

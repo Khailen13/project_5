@@ -5,8 +5,13 @@ from rest_framework.permissions import AllowAny
 from rest_framework.viewsets import ModelViewSet
 
 from users.models import Payment, User
-from users.serialilers import (PaymentSerializer, UserCreateSerializer, UserDetailSerializer, UserListSerializer,
-                               UserUpdateSerializer)
+from users.serialilers import (
+    PaymentSerializer,
+    UserCreateSerializer,
+    UserDetailSerializer,
+    UserListSerializer,
+    UserUpdateSerializer,
+)
 from users.services import create_stripe_price, create_stripe_product, create_stripe_session
 
 
